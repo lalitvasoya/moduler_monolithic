@@ -1,0 +1,4 @@
+djangorestframework==3.13.1
+pinject==0.14.1
+pydantic==1.9.1
+Django==3.2
