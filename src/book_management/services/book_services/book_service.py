@@ -1,8 +1,7 @@
-from core.models.book_management.book_models import Book
-from src.book_management.dto.book_dtos import BookDTO, BookListDTO
-from common.utils import get_list_of_dto_from_queryset
+from django.shortcuts import get_object_or_404
 
-from common.execeptions import EntityDoesNotExistsException, EntityUpdateFailed
+from core.models.book_management.book_models import Book
+from core.serializers.book_serializers.book_serializers import BookModelSerializer
 
 
 class BookService:
@@ -13,47 +12,29 @@ class BookService:
     def get_book_by_id(self, id: int):
         """ Get book by filtering by id """
         book = Book.objects.get(id=id)
-        return BookDTO.from_orm(book)
+        return BookModelSerializer(instance=book)
 
-    def is_book_exist(self, id: int):
-        """ Check is book exist in the DB """
-        books = Book.objects.filter(id=id)
-        if not books.exists():
-            return False
-        return books
-
-    def create_book(self, book: BookDTO):
-        if not self.author_service.is_author_exist(book.author_id):
-            raise EntityDoesNotExistsException
-        book = Book.objects.create(**book.dict())
-        return BookDTO.from_orm(book)
+    def create_book(self, data: dict):
+        book_serializer = BookModelSerializer(data=data)
+        if not book_serializer.is_valid():
+            return book_serializer.errors
+        book_serializer.save()
+        return book_serializer
 
     def get_all_books(self):
-        books = get_list_of_dto_from_queryset(queryset=Book.objects.all(), dto=BookDTO)
-        return BookListDTO.from_orm(books)
+        queryset = Book.objects.all()
+        book_serializer = BookModelSerializer(queryset, many=True)
+        return book_serializer
 
-    def update_book(self, book_dto: BookDTO, pk):
-        # validate the book and author
-        books = self.is_book_exist(pk)
-        authors = self.author_service.is_author_exist(book_dto.author_id)
-        if not (books and authors):
-            raise EntityDoesNotExistsException
-
-        # update the book
-        data = book_dto.dict()
-        data.pop('id')
-        update_count = books.update(**data)
-        if not update_count:
-            raise EntityUpdateFailed
-        return BookDTO.from_orm(books.first())
+    def update_book(self, data: dict, pk):
+        book = get_object_or_404(Book, pk=pk)
+        book_serializer = BookModelSerializer(book, data, partial=True)
+        if book_serializer.is_valid(raise_exception=True):
+            book_serializer.save()
+        return book_serializer
 
     def delete_book(self, pk: int):
-        # validate the book
-        books = self.is_book_exist(pk)
-        if not books:
-            raise EntityDoesNotExistsException
-
-        # delete the book
-        book = books.first()
-        books.delete()
-        return BookDTO.from_orm(book)
+        book = get_object_or_404(Book, pk=pk)
+        book.delete()
+        book_serializer = BookModelSerializer(book)
+        return book_serializer
